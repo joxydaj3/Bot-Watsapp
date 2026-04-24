@@ -17,51 +17,42 @@ const ytSearch = require("yt-search")
 
 // ================= CONFIGURAÇÕES BÁSICAS =================
 const PREFIX = "!"
-const OWNER = "258864617807@s.whatsapp.net"
+const OWNER = "258864617807@s.whatsapp.net" // Verifique se seu número está correto aqui
 const PORT = process.env.PORT || 3000
 
-// ================= DATABASE =================
+// ================= PROTEÇÃO CONTRA CRASHES =================
+process.on("unhandledRejection", (reason) => console.error("⚠️ Erro Global Rejection:", reason))
+process.on("uncaughtException", (err) => console.error("⚠️ Erro Global Exception:", err))
+
+// ================= DATABASE LOCAL =================
 const dbFile = path.join(__dirname, "database.json")
 let db = {
     avisos: {}, xp: {}, flood: {}, modoSilencio: {},
-    antiLink: {}, antiPalavrao: {}, boasVindas: {},
-    regras: {}, bemVindo: {}
+    antiLink: {}, antiPalavrao: {}, boasVindas: {}, regras: {}, bemVindo: {}
 }
-
 if (fs.existsSync(dbFile)) {
-    try {
-        db = { ...db, ...fs.readJsonSync(dbFile) }
-    } catch (e) { console.log("Erro ao ler DB, iniciando nova.") }
+    try { db = { ...db, ...fs.readJsonSync(dbFile) } } catch (e) { console.log("Erro ao ler DB")}
 }
-
 const saveDB = () => fs.writeJsonSync(dbFile, db, { spaces: 2 })
 
 // ================= SERVIDOR WEB PARA QR CODE =================
 let currentQR = null
 let isConnected = false
 
-const server = http.createServer(async (req, res) => {
+http.createServer(async (req, res) => {
     if (req.url === "/qr.png") {
         if (!currentQR) return res.end("QR nao gerado ou ja conectado")
         const buf = await QRCode.toBuffer(currentQR)
         res.writeHead(200, { "Content-Type": "image/png" })
         return res.end(buf)
     }
-    
     res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" })
-    if (isConnected) {
-        return res.end("<h1>✅ Bot Conectado!</h1>")
-    }
-    if (!currentQR) {
-        return res.end("<h1>⏳ Carregando QR... Recarregue a pagina em 5s</h1><script>setTimeout(()=>location.reload(), 5000)</script>")
-    }
+    if (isConnected) return res.end("<h1>✅ Bot Conectado!</h1>")
+    if (!currentQR) return res.end("<h1>⏳ Carregando QR... Atualize em 5s</h1><script>setTimeout(()=>location.reload(),5000)</script>")
+    
     const dataUrl = await QRCode.toDataURL(currentQR)
-    return res.end(`<h1>Escaneie o QR Code:</h1><img src="${dataUrl}"><script>setTimeout(()=>location.reload(), 20000)</script>`)
-})
-
-server.listen(PORT, "0.0.0.0", () => {
-    console.log(`🌐 Servidor rodando na porta ${PORT}`)
-})
+    res.end(`<h1>Escaneie o QR:</h1><img src="${dataUrl}"><script>setTimeout(()=>location.reload(),20000)</script>`)
+}).listen(PORT, "0.0.0.0")
 
 // ================= FUNÇÃO PRINCIPAL DO BOT =================
 async function startBot() {
@@ -72,9 +63,8 @@ async function startBot() {
         version,
         auth: state,
         logger: P({ level: "silent" }),
-        printQRInTerminal: true, // Também mostra no log do Railway
-        browser: Browsers.ubuntu("Chrome"),
-        markOnlineOnConnect: true
+        browser: Browsers.macOS("Safari"),
+        printQRInTerminal: true // Também imprime no terminal do Railway
     })
 
     sock.ev.on("creds.update", saveCreds)
@@ -82,22 +72,20 @@ async function startBot() {
     sock.ev.on("connection.update", (update) => {
         const { connection, lastDisconnect, qr } = update
         if (qr) currentQR = qr
-        
         if (connection === "open") {
-            console.log("✅ Conexão estabelecida com sucesso!")
             isConnected = true
             currentQR = null
+            console.log("✅ BOT CONECTADO COM SUCESSO!")
         }
-
         if (connection === "close") {
             isConnected = false
             const shouldReconnect = (lastDisconnect?.error)?.output?.statusCode !== DisconnectReason.loggedOut
-            console.log("❌ Conexão fechada. Motivo:", lastDisconnect?.error, "Tentando reconectar:", shouldReconnect)
+            console.log("❌ Conexão fechada. Tentando reconectar:", shouldReconnect)
             if (shouldReconnect) startBot()
         }
     })
 
-    // Mensagens
+    // ================= PROCESSAMENTO DE MENSAGENS =================
     sock.ev.on("messages.upsert", async ({ messages }) => {
         try {
             const msg = messages[0]
@@ -106,116 +94,94 @@ async function startBot() {
             const from = msg.key.remoteJid
             const type = Object.keys(msg.message)[0]
             
-            // Extrair texto de várias formas
-            let text = ""
-            if (type === "conversation") text = msg.message.conversation
-            else if (type === "extendedTextMessage") text = msg.message.extendedTextMessage.text
-            else if (type === "imageMessage") text = msg.message.imageMessage.caption
-            else if (type === "videoMessage") text = msg.message.videoMessage.caption
+            // Pega o texto de qualquer tipo de mensagem (conversa, legenda de imagem, etc)
+            const body = (type === 'conversation') ? msg.message.conversation : 
+                         (type === 'extendedTextMessage') ? msg.message.extendedTextMessage.text : 
+                         (type === 'imageMessage') ? msg.message.imageMessage.caption : 
+                         (type === 'videoMessage') ? msg.message.videoMessage.caption : ''
+
+            if (!body) return
             
-            if (!text) return
-            const body = text.toLowerCase().trim()
-            const isCmd = body.startsWith(PREFIX)
-            const command = isCmd ? body.slice(PREFIX.length).split(" ")[0] : null
-            const args = text.trim().split(/\s+/).slice(1)
+            console.log(`📩 Mensagem recebida de ${from}: ${body.slice(0, 30)}`)
 
-            // Info do Remetente
-            const sender = msg.key.participant || from
             const isGroup = from.endsWith("@g.us")
-            const isOwner = sender.includes(OWNER.split("@")[0])
+            const sender = isGroup ? msg.key.participant : from
+            const isCmd = body.startsWith(PREFIX)
+            const command = isCmd ? body.slice(PREFIX.length).trim().split(/ +/).shift().toLowerCase() : null
+            const args = body.trim().split(/ +/).slice(1)
 
-            // Info do Grupo
-            let groupMetadata = isGroup ? await sock.groupMetadata(from) : null
-            let participants = isGroup ? groupMetadata.participants : []
-            let isAdmin = isGroup ? participants.find(p => p.id === sender)?.admin : false
-            let botId = sock.user.id.split(":")[0] + "@s.whatsapp.net"
-            let isBotAdmin = isGroup ? participants.find(p => p.id === botId)?.admin : false
+            // Funções de resposta
+            const reply = async (text) => {
+                await sock.sendMessage(from, { text: text }, { quoted: msg })
+            }
 
-            // Lógica de Silêncio
-            if (isGroup && db.modoSilencio[from] && !isAdmin && !isOwner) return
+            // XP e Database simples
+            db.xp[sender] = (db.xp[sender] || 0) + 1
+            if (isGroup) saveDB()
 
-            // COMANDOS
-            if (isCmd) {
-                console.log(`[CMD] ${command} enviado por ${sender}`)
-                
-                const reply = (txt) => sock.sendMessage(from, { text: txt }, { quoted: msg })
+            // Lógica de Admins
+            let isAdmin = false
+            let isBotAdmin = false
+            if (isGroup) {
+                const metadata = await sock.groupMetadata(from)
+                const participants = metadata.participants
+                isAdmin = participants.find(p => p.id === sender)?.admin !== null
+                const botId = sock.user.id.split(":")[0] + "@s.whatsapp.net"
+                isBotAdmin = participants.find(p => p.id === botId)?.admin !== null
+            }
 
-                switch (command) {
-                    case "ping":
-                        await reply("🏓 Pong! O bot está ativo.")
-                        break
+            // ================= COMANDOS =================
+            if (!isCmd) return
 
-                    case "menu":
-                    case "help":
-                        let menu = `🤖 *BOT WHATSAPP*\n\n`
-                        menu += `*!ping* - Testar bot\n`
-                        menu += `*!sticker* - Criar figurinha (marque imagem)\n`
-                        menu += `*!ban* - Banir (Admins)\n`
-                        menu += `*!todos* - Marcar todos\n`
-                        menu += `*!play* - Buscar música\n`
-                        await reply(menu)
-                        break
+            switch (command) {
+                case 'ping':
+                    await reply("🏓 Pong! O bot está funcionando.")
+                    break
 
-                    case "sticker":
-                    case "s":
-                        const quoted = msg.message.extendedTextMessage?.contextInfo?.quotedMessage
-                        const media = quoted ? quoted : msg.message
-                        if (media?.imageMessage || media?.videoMessage) {
-                            await reply("⏳ Criando figurinha...")
-                            const buffer = await downloadMediaMessage(
-                                { key: msg.key, message: media },
-                                "buffer",
-                                {}
-                            )
-                            const sticker = new Sticker(buffer, {
-                                pack: "Meu Bot",
-                                author: "WhatsApp",
-                                type: StickerTypes.FULL,
-                                quality: 50
-                            })
-                            await sock.sendMessage(from, { sticker: await sticker.toBuffer() }, { quoted: msg })
-                        } else {
-                            await reply("❌ Responda a uma imagem ou vídeo com !sticker")
-                        }
-                        break
+                case 'menu':
+                case 'help':
+                    await reply(`🤖 *BOT ATIVO*\n\nComandos disponíveis:\n!ping\n!sticker\n!menu\n!regras\n!total\n\n_Use ${PREFIX} antes de cada comando._`)
+                    break
 
-                    case "todos":
-                        if (!isGroup) return reply("Apenas em grupos")
-                        if (!isAdmin) return reply("Apenas admins")
-                        const mems = participants.map(p => p.id)
-                        let texto = "📢 *CHAMADA GERAL*\n\n"
-                        for (let m of mems) { texto += `@${m.split("@")[0]}\n` }
-                        await sock.sendMessage(from, { text: texto, mentions: mems })
-                        break
+                case 'sticker':
+                case 's':
+                    await reply("⏳ Criando seu sticker...")
+                    const buffer = await downloadMediaMessage(msg, "buffer", {})
+                    const sticker = new Sticker(buffer, {
+                        pack: "Meu Bot",
+                        author: "Bot",
+                        type: StickerTypes.FULL,
+                        quality: 70
+                    })
+                    await sock.sendMessage(from, { sticker: await sticker.toBuffer() }, { quoted: msg })
+                    break
 
-                    case "ban":
-                        if (!isGroup || !isAdmin || !isBotAdmin) return reply("Erro: Verifique se eu e você somos admins.")
-                        const citou = msg.message.extendedTextMessage?.contextInfo?.mentionedJid[0] || 
-                                      msg.message.extendedTextMessage?.contextInfo?.participant
-                        if (!citou) return reply("Marque quem deseja banir.")
-                        await sock.groupParticipantsUpdate(from, [citou], "remove")
-                        await reply("🔨 Removido com sucesso.")
-                        break
+                case 'regras':
+                    const r = db.regras[from] || "Sem regras definidas."
+                    await reply(`📜 *REGRAS DO GRUPO:*\n\n${r}`)
+                    break
 
-                    case "play":
-                        if (!args.length) return reply("Diga o nome da música.")
-                        const res = await ytSearch(args.join(" "))
-                        const vid = res.videos[0]
-                        if (vid) {
-                            await reply(`🎵 *${vid.title}*\n🔗 ${vid.url}`)
-                        }
-                        break
-                }
+                case 'marcartodos':
+                case 'todos':
+                    if (!isGroup) return reply("Apenas em grupos.")
+                    if (!isAdmin) return reply("Apenas admins.")
+                    const metadata = await sock.groupMetadata(from)
+                    const users = metadata.participants.map(u => u.id)
+                    let texto = `📢 *AVISO GERAL*\n\n`
+                    for (let u of users) texto += `@${u.split("@")[0]}\n`
+                    await sock.sendMessage(from, { text: texto, mentions: users })
+                    break
+
+                default:
+                    // Se quiser que o bot avise que o comando não existe, descomente a linha abaixo:
+                    // await reply("❌ Comando não reconhecido. Digite !menu")
+                    break
             }
 
         } catch (err) {
-            console.error("ERRO NO UPSERT:", err)
+            console.log("❌ Erro ao processar mensagem:", err)
         }
     })
 }
-
-// Proteção básica
-process.on("unhandledRejection", (err) => console.log("Erro Rejeitado:", err))
-process.on("uncaughtException", (err) => console.log("Erro Capturado:", err))
 
 startBot()
