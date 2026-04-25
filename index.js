@@ -19,13 +19,18 @@ const ytSearch = require("yt-search")
 
 // ================= CONFIGURAÇÕES =================
 const PREFIX = "!"
-const OWNER = "258864617807@s.whatsapp.net" // Seu número
+const OWNER = "258864617807@s.whatsapp.net" 
+const PORT = process.env.PORT || 3000
 const dbFile = path.join(__dirname, "database.json")
 
-// Banco de Dados Local
-let db = { groups: {}, users: {} }
+// ================= PROTEÇÃO CONTRA CRASHES =================
+process.on("unhandledRejection", (reason) => console.error("⚠️ Erro Global Rejection:", reason))
+process.on("uncaughtException", (err) => console.error("⚠️ Erro Global Exception:", err))
+
+// ================= DATABASE LOCAL =================
+let db = { groups: {}, users: {}, avisos: {}, xp: {}, antiLink: {}, antiPalavrao: {}, boasVindas: {}, regras: {} }
 if (fs.existsSync(dbFile)) {
-    try { db = fs.readJsonSync(dbFile) } catch { db = { groups: {}, users: {} } }
+    try { db = fs.readJsonSync(dbFile) } catch (e) { console.log("Erro ao ler DB, criando nova.") }
 }
 const saveDB = () => fs.writeJsonSync(dbFile, db, { spaces: 2 })
 
@@ -33,28 +38,28 @@ const saveDB = () => fs.writeJsonSync(dbFile, db, { spaces: 2 })
 const BAD_WORDS = ["puta", "caralho", "fdp", "merda", "lixo", "verme", "corno", "idiota", "desgraça", "estupido", "vaca"]
 const LINK_REGEX = /((https?:\/\/)|(www\.))[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)/gi
 
-// ================= SERVIDOR WEB (RAILWAY) =================
+// ================= SERVIDOR WEB (LÓGICA ANTIGA DO QR) =================
 let currentQR = null
 let isConnected = false
 
-const server = http.createServer(async (req, res) => {
+http.createServer(async (req, res) => {
+    if (req.url === "/qr.png") {
+        if (!currentQR) return res.end("QR nao gerado ou ja conectado")
+        const buf = await QRCode.toBuffer(currentQR)
+        res.writeHead(200, { "Content-Type": "image/png" })
+        return res.end(buf)
+    }
     res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" })
-    if (isConnected) return res.end("<body style='background:#0b141a;color:#25d366;text-align:center;font-family:sans-serif;padding-top:50px'><h1>✅ BOT ONLINE!</h1><p style='color:#fff'>O bot já está conectado ao WhatsApp.</p></body>")
-    if (!currentQR) return res.end("<h1>⏳ Gerando QR... Aguarde 10s e atualize.</h1>")
+    if (isConnected) return res.end("<h1>✅ Bot Conectado!</h1>")
+    if (!currentQR) return res.end("<h1>⏳ Carregando QR... Atualize em 5s</h1><script>setTimeout(()=>location.reload(),5000)</script>")
+    
     const dataUrl = await QRCode.toDataURL(currentQR)
-    res.end(`
-        <body style='background:#0b141a;color:#fff;text-align:center;font-family:sans-serif;padding-top:30px'>
-            <h1 style='color:#25d366'>📱 CONECTAR BOT</h1>
-            <p>Escaneie o QR Code abaixo com seu WhatsApp:</p>
-            <img src="${dataUrl}" style='border:10px solid #fff;border-radius:15px;width:300px;box-shadow:0 0 20px rgba(0,0,0,0.5)'>
-            <p style='color:#888'>A página atualiza sozinha a cada 20s.</p>
-            <script>setTimeout(()=>location.reload(),20000)</script>
-        </body>
-    `)
-}).listen(process.env.PORT || 3000)
+    res.end(`<h1>Escaneie o QR:</h1><img src="${dataUrl}"><script>setTimeout(()=>location.reload(),20000)</script>`)
+}).listen(PORT, "0.0.0.0", () => {
+    console.log(`🌐 Servidor QR rodando na porta ${PORT}`)
+})
 
-// ================= NÚCLEO DO BOT =================
-
+// ================= FUNÇÃO PRINCIPAL DO BOT =================
 async function startBot() {
     const { state, saveCreds } = await useMultiFileAuthState(path.join(__dirname, "auth"))
     const { version } = await fetchLatestBaileysVersion()
@@ -64,7 +69,7 @@ async function startBot() {
         auth: state,
         logger: P({ level: "silent" }),
         browser: Browsers.macOS("Safari"),
-        printQRInTerminal: false,
+        printQRInTerminal: true,
         markOnlineOnConnect: true
     })
 
@@ -74,16 +79,15 @@ async function startBot() {
         const { connection, lastDisconnect, qr } = update
         if (qr) currentQR = qr
         if (connection === "open") {
-            isConnected = true; currentQR = null
-            console.log("🚀 [SISTEMA] Bot conectado e pronto para uso!")
+            isConnected = true
+            currentQR = null
+            console.log("✅ BOT CONECTADO COM SUCESSO!")
         }
         if (connection === "close") {
             isConnected = false
-            const code = lastDisconnect?.error?.output?.statusCode
-            if (code !== DisconnectReason.loggedOut) {
-                console.log("🔄 Tentando reconectar...")
-                startBot()
-            }
+            const shouldReconnect = (lastDisconnect?.error)?.output?.statusCode !== DisconnectReason.loggedOut
+            console.log("❌ Conexão fechada. Reconectando:", shouldReconnect)
+            if (shouldReconnect) startBot()
         }
     })
 
@@ -96,16 +100,16 @@ async function startBot() {
                 if (anu.action === "add") {
                     let txt = `🌟 *BEM-VINDO(A)* @${x.split("@")[0]}!\n\n` +
                               `🏢 *Grupo:* ${meta.subject}\n` +
-                              `👥 *Membros:* ${meta.participants.length}\n` +
-                              `🔗 *Link:* chat.whatsapp.com/${await sock.groupInviteCode(anu.id)}\n\n` +
-                              `📜 *REGRAS:* ${db.groups[anu.id].regras || "Consulte os admins."}\n\n` +
-                              `Divirta-se e respeite os demais!`
+                              `👥 *Membros:* ${meta.participants.length}\n\n` +
+                              `📜 *REGRAS:* ${db.groups[anu.id].regras || "Não definidas."}\n\n` +
+                              `Divirta-se!`
                     await sock.sendMessage(anu.id, { text: txt, mentions: [x] })
                 }
             }
-        } catch (e) { console.log("Erro no Welcome:", e) }
+        } catch (e) { console.log(e) }
     })
 
+    // --- Processamento de Mensagens ---
     sock.ev.on("messages.upsert", async ({ messages }) => {
         try {
             const m = messages[0]
@@ -113,7 +117,6 @@ async function startBot() {
             const from = m.key.remoteJid
             const type = Object.keys(m.message)[0]
             
-            // Extração de Texto Inteligente
             const body = (type === 'conversation') ? m.message.conversation : 
                          (type === 'extendedTextMessage') ? m.message.extendedTextMessage.text : 
                          (type === 'imageMessage') ? m.message.imageMessage.caption : 
@@ -127,20 +130,20 @@ async function startBot() {
             const args = body.trim().split(/ +/).slice(1)
             const q = args.join(" ")
 
-            // Setup de Database (Forçar ON)
+            // Setup Automático de Banco de Dados
             if (isGroup && !db.groups[from]) {
-                db.groups[from] = { antiLink: true, antiPalavrao: true, boasVindas: true, avisos: {}, regras: "Sem regras definidas." }
+                db.groups[from] = { antiLink: true, antiPalavrao: true, boasVindas: true, avisos: {}, regras: "" }
                 saveDB()
             }
             if (!db.users[sender]) { db.users[sender] = { xp: 0 }; saveDB() }
 
-            // --- LÓGICA DE ADMINS CORRIGIDA ---
+            // Lógica de Admin Corrigida
             let groupMetadata, participants, admins, isAdmin, isBotAdmin, botId
             if (isGroup) {
                 groupMetadata = await sock.groupMetadata(from)
                 participants = groupMetadata.participants
                 admins = participants.filter(p => p.admin !== null).map(p => p.id)
-                botId = jidNormalizedUser(sock.user.id) // Normaliza para comparar sem erro
+                botId = jidNormalizedUser(sock.user.id)
                 isAdmin = admins.includes(sender) || sender === OWNER
                 isBotAdmin = admins.includes(botId)
             }
@@ -150,15 +153,13 @@ async function startBot() {
 
             // ================= MODERAÇÃO AUTOMÁTICA =================
             if (isGroup && !isAdmin && isBotAdmin) {
-                // Anti-Link
                 if (db.groups[from].antiLink && LINK_REGEX.test(body)) {
                     await sock.sendMessage(from, { delete: m.key })
-                    return addAviso(from, sender, "Envio de link proibido")
+                    return addAviso(from, sender, "Link Proibido")
                 }
-                // Anti-Palavrão
                 if (db.groups[from].antiPalavrao && BAD_WORDS.some(w => body.toLowerCase().includes(w))) {
                     await sock.sendMessage(from, { delete: m.key })
-                    return addAviso(from, sender, "Uso de linguagem imprópria")
+                    return addAviso(from, sender, "Palavra Imprópria")
                 }
             }
 
@@ -172,11 +173,11 @@ async function startBot() {
                     await sock.groupParticipantsUpdate(jid, [user], "remove")
                     db.groups[jid].avisos[user] = 0; saveDB()
                 } else {
-                    await reply(`⚠️ *MODERAÇÃO:* @${user.split("@")[0]}\n\n*Aviso:* ${count}/3\n*Motivo:* ${motivo}\n\nNão repita ou será banido.`)
+                    await reply(`⚠️ @${user.split("@")[0]} recebeu um aviso (${count}/3).\nMotivo: ${motivo}`)
                 }
             }
 
-            // Sistema de XP
+            // XP
             db.users[sender].xp += 5; saveDB()
 
             // ================= COMANDOS =================
@@ -189,61 +190,37 @@ async function startBot() {
       🛡️ *BOT WHATSAPP PRO* 🛡️
 ╚════════════════════╝
 
-✨ *Estatísticas:*
-• Usuário: ${pushname}
-• Atividade (XP): ${db.users[sender].xp}
+✨ *XP:* ${db.users[sender].xp}
 
-🛡️ *Administração:*
 ➤ !ban @user
 ➤ !promover @user
 ➤ !rebaixar @user
-➤ !apagar (Responda msg)
-➤ !silenciar / !falar
-➤ !antilink on/off
-➤ !antipalavrao on/off
-➤ !setregras <texto>
-
-🤖 *Inteligência Artificial:*
-➤ !gpt <sua pergunta>
-
-🔎 *Pesquisa & Música:*
-➤ !play <nome da música>
-➤ !google <assunto>
-➤ !jw <assunto>
-➤ !playstore <app>
-
-🎨 *Utilidades:*
-➤ !s ou !sticker (mídia)
-➤ !toimg (sticker)
-➤ !xp / !ranking
-➤ !todos (marcar membros)
-➤ !infogrupo / !id
-
-⚙️ *Sistema:*
-➤ !ping / !dono / !say
+➤ !apagar (Responda a msg)
+➤ !gpt <pergunta>
+➤ !play <música>
+➤ !google <termo>
+➤ !jw <termo>
+➤ !s (Criar figurinha)
+➤ !toimg (Figurinha p/ Foto)
+➤ !todos (Marcar membros)
+➤ !id / !ping / !dono
 `
                     reply(menu)
                     break
 
-                // --- COMANDO IA GPT ---
                 case 'gpt':
                     if (!q) return reply("Diga o que deseja perguntar ao GPT.")
-                    reply("🤖 *PENSANDO...*")
+                    reply("🤖 *Pensando...*")
                     try {
-                        // Usando API Gemini/GPT estável
                         const res = await axios.get(`https://api.paxsenix.biz.id/ai/gpt4?text=${encodeURIComponent(q)}`)
                         reply(`✨ *RESPOSTA GPT:*\n\n${res.data.message}`)
-                    } catch (e) {
-                        reply("❌ Ocorreu um erro ao conectar com o servidor de IA. Tente novamente mais tarde.")
-                    }
+                    } catch (e) { reply("❌ Erro ao conectar com a IA.") }
                     break
 
-                // --- MODERAÇÃO ---
                 case 'ban':
-                    if (!isAdmin) return reply("❌ Você não é administrador.")
-                    if (!isBotAdmin) return reply("❌ Eu não sou administrador neste grupo.")
+                    if (!isAdmin || !isBotAdmin) return reply("❌ Erro: Preciso ser Admin e você também.")
                     let userBan = getMention()
-                    if (!userBan) return reply("Marque quem deseja banir.")
+                    if (!userBan) return reply("Marque alguém.")
                     await sock.groupParticipantsUpdate(from, [userBan], "remove")
                     reply("🔨 Banido com sucesso.")
                     break
@@ -252,14 +229,14 @@ async function startBot() {
                     if (!isAdmin || !isBotAdmin) return reply("❌ Erro de permissão.")
                     let userPro = getMention()
                     await sock.groupParticipantsUpdate(from, [userPro], "promote")
-                    reply("⭐ @user agora é administrador.", [userPro])
+                    reply("✅ Promovido a Admin.")
                     break
 
                 case 'rebaixar':
                     if (!isAdmin || !isBotAdmin) return reply("❌ Erro de permissão.")
                     let userDem = getMention()
                     await sock.groupParticipantsUpdate(from, [userDem], "demote")
-                    reply("⬇️ @user foi rebaixado.", [userDem])
+                    reply("⬇️ Rebaixado para membro comum.")
                     break
 
                 case 'apagar':
@@ -268,28 +245,26 @@ async function startBot() {
                     await sock.sendMessage(from, { delete: m.message.extendedTextMessage.contextInfo })
                     break
 
-                // --- PESQUISAS ---
                 case 'google':
-                    if (!q) return reply("Qual sua dúvida?")
-                    reply(`🔎 *Google:* Pesquisando sobre ${q}...\n\n🔗 Link oficial: https://www.google.com/search?q=${encodeURIComponent(q)}`)
+                    if (!q) return reply("O que quer pesquisar?")
+                    reply(`🔎 *Google:* https://www.google.com/search?q=${encodeURIComponent(q)}`)
                     break
 
                 case 'jw':
-                    if (!q) return reply("Qual o assunto?")
-                    reply(`📖 *JW.ORG:* Buscando publicações sobre ${q}...\n\n🔗 Pesquisa: https://www.jw.org/pt/pesquisar/?q=${encodeURIComponent(q)}`)
+                    if (!q) return reply("O que quer buscar no JW?")
+                    reply(`📖 *JW:* https://www.jw.org/pt/pesquisar/?q=${encodeURIComponent(q)}`)
                     break
 
                 case 'play':
-                    if (!q) return reply("Qual música deseja buscar?")
+                    if (!q) return reply("Nome da música?")
                     reply("⏳ Buscando no YouTube...")
                     const results = await ytSearch(q)
                     const v = results.videos[0]
                     if (!v) return reply("Nada encontrado.")
-                    const vTxt = `🎵 *MÚSICA ENCONTRADA*\n\n📌 *Título:* ${v.title}\n⏱️ *Duração:* ${v.timestamp}\n👀 *Views:* ${v.views}\n👤 *Canal:* ${v.author.name}\n\n🔗 *Link:* ${v.url}`
+                    const vTxt = `🎵 *MÚSICA ENCONTRADA*\n\n📌 *Título:* ${v.title}\n⏱️ *Duração:* ${v.timestamp}\n🔗 *Link:* ${v.url}`
                     await sock.sendMessage(from, { image: { url: v.thumbnail }, caption: vTxt }, { quoted: m })
                     break
 
-                // --- UTILITÁRIOS ---
                 case 's': case 'sticker':
                     if (type === 'imageMessage' || m.message.extendedTextMessage?.contextInfo?.quotedMessage) {
                         const buffer = await downloadMediaMessage(m, 'buffer', {})
@@ -306,18 +281,17 @@ async function startBot() {
                     break
 
                 case 'todos':
-                    if (!isAdmin) return reply("Apenas Admins.")
+                    if (!isAdmin) return reply("Só admins.")
                     const mems = participants.map(p => p.id)
-                    let text = `📢 *MARCANDO TODOS:*\n\n` + mems.map(m => `@${m.split("@")[0]}`).join(" ")
-                    sock.sendMessage(from, { text, mentions: mems })
+                    sock.sendMessage(from, { text: `📢 *Marcando Todos...*`, mentions: mems })
                     break
 
-                case 'id': reply(`🆔 *ID DO CHAT:* ${from}`); break
-                case 'ping': reply("🏓 *Pong!* Estou ativo e rápido."); break
-                case 'dono': reply(`👑 *DONO:* @${OWNER.split("@")[0]}`, [OWNER]); break
+                case 'id': reply(`🆔 *ID:* ${from}`); break
+                case 'ping': reply("🏓 Pong!"); break
+                case 'dono': reply(`👑 *Dono:* @${OWNER.split("@")[0]}`, [OWNER]); break
                 case 'say': if (!q) return; reply(q); break
             }
-        } catch (e) { console.log("ERRO INTERNO:", e) }
+        } catch (err) { console.log("❌ Erro:", err) }
     })
 }
 
