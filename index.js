@@ -19,7 +19,7 @@ const ytSearch = require("yt-search")
 
 // ================= CONFIGURAÇÕES =================
 const PREFIX = "!"
-const OWNER = "258864617807@s.whatsapp.net" 
+const OWNER = "258858285865@s.whatsapp.net" 
 const PORT = process.env.PORT || 3000
 const dbFile = path.join(__dirname, "database.json")
 
@@ -51,7 +51,7 @@ http.createServer(async (req, res) => {
     }
     res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" })
     if (isConnected) return res.end("<h1>✅ Bot Conectado!</h1>")
-    if (!currentQR) return res.end("<h1>⏳ Carregando QR... Atualize em 5s</h1><script>setTimeout(()=>location.reload(),5000)</script>")
+    if (!currentQR) return res.end("<h1>⏳ Carregando QR... Atualize em 30s</h1><script>setTimeout(()=>location.reload(),30000)</script>")
     
     const dataUrl = await QRCode.toDataURL(currentQR)
     res.end(`<h1>Escaneie o QR:</h1><img src="${dataUrl}"><script>setTimeout(()=>location.reload(),20000)</script>`)
