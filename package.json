@@ -1,7 +1,7 @@
 {
-  "name": "bot-whatsapp-pro",
-  "version": "1.0.0",
-  "description": "Bot Profissional para WhatsApp",
+  "name": "the-one-man-bot",
+  "version": "1.1.0",
+  "description": "Bot Profissional 24h",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
