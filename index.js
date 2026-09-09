@@ -52,7 +52,7 @@ const PREFIX = process.env.PREFIX || "!"
 const OWNER = process.env.OWNER_JID || "258880088585@s.whatsapp.net"
 const BOT_NAME = process.env.BOT_NAME || "Wa Grupo Help J3"
 const PORT = Number(process.env.PORT || 3000)
-const TZ = process.env.TZ_NAME || "Africa/Maputo")
+const TZ = process.env.TZ_NAME || "Africa/Maputo";
 
 const DATA_DIR = process.env.DATA_DIR || __dirname
 const AUTH_DIR = process.env.AUTH_DIR || path.join(DATA_DIR, "auth")
