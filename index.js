@@ -3537,34 +3537,34 @@ function renderSchedules(
 <div class="top">
 
 <b>
-${esc(x.time)}
+\${esc(x.time)}
 </b>
 
 <span class="pill">
-${esc(x.status)}
+\${esc(x.status)}
 </span>
 
 </div>
 
 <p>
-${esc(x.text)}
+\${esc(x.text)}
 </p>
 
 <small>
-${esc(x.jid)}
+\${esc(x.jid)}
 <br>
 ID:
-${esc(x.id)}
+\${esc(x.id)}
 </small>
 
-${
+\${
   x.status === "pending"
-    ? `
+    ? \`
 <br><br>
 <button
 class="danger"
 onclick="cancelSchedule(
-'${encodeURIComponent(x.id)}'
+'\${encodeURIComponent(x.id)}'
 )">
 Cancel
 </button>
