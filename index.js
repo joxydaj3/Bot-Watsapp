@@ -3385,45 +3385,45 @@ function renderGroups() {
 <div class="top">
 
 <strong>
-${esc(g.subject)}
+\${esc(g.subject)}
 </strong>
 
 <span class="pill">
-${g.participants} members
+\${g.participants} members
 </span>
 
 </div>
 
 <p>
 ID:
-${esc(g.jid)}
+\${esc(g.jid)}
 </p>
 
 <p>
 Anti-link:
 <strong>
-${g.antiLink ? "ON" : "OFF"}
+\${g.antiLink ? "ON" : "OFF"}
 </strong>
 </p>
 
 <p>
 Anti-badword:
 <strong>
-${g.antiPalavrao ? "ON" : "OFF"}
+\${g.antiPalavrao ? "ON" : "OFF"}
 </strong>
 </p>
 
 <p>
 Welcome:
 <strong>
-${g.boasVindas ? "ON" : "OFF"}
+\${g.boasVindas ? "ON" : "OFF"}
 </strong>
 </p>
 
 <button
 class="primary"
 onclick="toggleGroup(
-'${encodeURIComponent(g.jid)}'
+\'${encodeURIComponent(g.jid)}'
 )">
 Manage
 </button>
