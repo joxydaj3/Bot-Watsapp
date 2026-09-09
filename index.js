@@ -3379,7 +3379,7 @@ function renderGroups() {
     .innerHTML =
     groups
       .map(
-        g => `
+        g => \`
 <div class="group">
 
 <div class="top">
@@ -3429,7 +3429,7 @@ Manage
 </button>
 
 </div>
-`
+\`
       )
       .join("");
 }
@@ -3531,7 +3531,7 @@ function renderSchedules(
     .innerHTML =
     list
       .map(
-        x => `
+        x => \`
 <div class="sched">
 
 <div class="top">
@@ -3573,7 +3573,7 @@ Cancel
 }
 
 </div>
-`
+\`
       )
       .join("");
 }
