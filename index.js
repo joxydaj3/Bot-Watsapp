@@ -425,55 +425,50 @@ async function isGroupAdmin(groupJid, userJid) {
   }
 }
 
-async function botIsAdmin(groupJid) {
+async function isBotAdmin(jid) {
+
   try {
 
-    const meta = await getMetadata(groupJid, true)
+    const metadata = await sock.groupMetadata(jid);
 
-    console.log("===== PARTICIPANTS DEBUG =====")
-    console.log(JSON.stringify(meta.participants, null, 2))
-    console.log("BOT USER:", JSON.stringify(sock.user, null, 2))
-    console.log("===== END DEBUG =====")
+    const botNumber =
+      sock.user.id.split(":")[0];
 
-    const botRawIds = [
-      sock?.user?.id,
-      sock?.user?.lid
-    ].filter(Boolean)
+    const botParticipant =
+      metadata.participants.find(p =>
+        p.id === sock.user.id ||
+        p.jid === sock.user.id ||
+        p.id?.includes(botNumber) ||
+        p.jid?.includes(botNumber)
+      );
 
-    const cleanNumber = value => {
-      return String(value || "")
-        .split("@")[0]
-        .split(":")[0]
-        .replace(/\D/g, "")
-    }
-
-    const botNumbers = botRawIds
-      .map(cleanNumber)
-      .filter(Boolean)
-
-    const p = meta?.participants?.find(x => {
-      const participantIds = [x?.id, x?.lid]
-        .filter(Boolean)
-        .map(cleanNumber)
-        .filter(Boolean)
-
-      return participantIds.some(id => botNumbers.includes(id))
-    })
-
-    const result = isParticipantAdmin(p)
+    const isAdmin =
+      botParticipant &&
+      (
+        botParticipant.admin === "admin" ||
+        botParticipant.admin === "superadmin"
+      );
 
     console.log(
-      `🔐 Bot admin check: ${result ? "YES" : "NO"} | ` +
-      `bot: ${botNumbers.join(",")} | ` +
-      `participant: ${p?.id || p?.lid || "NOT FOUND"} | ` +
-      `role: ${p?.admin || "none"}`
-    )
+      "🔐 Bot admin check:",
+      isAdmin ? "YES" : "NO",
+      "| bot:",
+      botNumber
+    );
 
-    return result
-  } catch (e) {
-    console.error("botIsAdmin:", e.message)
-    return false
+    return !!isAdmin;
+
+  } catch(e) {
+
+    console.log(
+      "Admin check error:",
+      e.message
+    );
+
+    return false;
+
   }
+
 }
 
 // ============================================================
