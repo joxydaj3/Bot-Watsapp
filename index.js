@@ -425,7 +425,7 @@ async function isGroupAdmin(groupJid, userJid) {
   }
 }
 
-async function isBotAdmin(jid) {
+async function botIsAdmin(jid) {
 
   try {
 
