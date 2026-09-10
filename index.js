@@ -82,6 +82,8 @@ let db = {
   groups: {},
   users: {},
   schedules: [],
+  automations: [],
+  autoReplies: [],
   meta: {},
 }
 
@@ -118,6 +120,31 @@ function saveDB() {
       console.error("Database save error:", e.message)
     }
   }, 100)
+}
+
+function addAutomation(data) {
+
+  db.automations.push({
+    id: Date.now().toString(),
+    active: true,
+    createdAt: new Date().toISOString(),
+    ...data
+  })
+
+  saveDB()
+}
+
+
+function addAutoReply(data) {
+
+  db.autoReplies.push({
+    id: Date.now().toString(),
+    active: true,
+    createdAt: new Date().toISOString(),
+    ...data
+  })
+
+  saveDB()
 }
 
 // ============================================================
