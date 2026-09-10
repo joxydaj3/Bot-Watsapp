@@ -1422,7 +1422,7 @@ async function startBot() {
 
               const custom =
                 g.welcomeText ||
-                `👋 Hello @${jidDisplay(
+                `👋 Welcome  @${jidDisplay(
                   user
                 )}!\n\n🏢 *Group:* ${
                   meta?.subject ||
