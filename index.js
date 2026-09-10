@@ -903,6 +903,7 @@ ${PREFIX}setregras
 ${PREFIX}regras
 ${PREFIX}aviso
 ${PREFIX}avisos
+${PREFIX}auto
 
 📅 *SCHEDULING*
 
@@ -1227,6 +1228,92 @@ function scheduleMessage(
 
   return item
 }
+
+setInterval(async () => {
+
+  try {
+
+    if (!db.automations) return
+
+    const now =
+      new Date()
+        .toLocaleTimeString(
+          "en-GB",
+          {
+            hour: "2-digit",
+            minute: "2-digit",
+            timeZone: TZ
+          }
+        )
+
+
+    for (
+      const auto of db.automations
+    ) {
+
+      if (!auto.active) continue
+
+      if (auto.time !== now) continue
+
+
+      if (
+        auto.action === "fechar"
+      ) {
+
+        await sock.groupSettingUpdate(
+          auto.jid,
+          "announcement"
+        )
+
+      }
+
+      if (
+  auto.action === "mensagem"
+) {
+
+  await sendText(
+    auto.jid,
+    auto.message
+  )
+
+      }
+
+
+      if (
+        auto.action === "abrir"
+      ) {
+
+        await sock.groupSettingUpdate(
+          auto.jid,
+          "not_announcement"
+        )
+
+      }
+
+
+      if (
+        auto.mode === "one"
+      ) {
+
+        auto.active = false
+
+      }
+
+      saveDB()
+
+    }
+
+
+  } catch (e) {
+
+    console.error(
+      "Automation engine:",
+      e.message
+    )
+
+  }
+
+}, 60000)
 
 // ============================================================
 // SOCKET / WHATSAPP SESSION
@@ -1843,9 +1930,30 @@ async function startBot() {
 
               case "auto": {
 
-  if (!isGroup) {
-    return reply("This command only works in groups.")
+  let targetGroup = from
+
+if (!isGroup) {
+
+  if (
+    normalizeJid(sender) !== normalizeJid(OWNER)
+  ) {
+    return reply(
+      "❌ Only owner can configure from private chat."
+    )
   }
+
+  targetGroup = args[1]
+
+  if (
+    !targetGroup ||
+    !targetGroup.endsWith("@g.us")
+  ) {
+    return reply(
+      "Use:\n!auto mensagem GROUP_ID 08:00 all Text"
+    )
+  }
+
+}
 
   if (!admin) {
     return reply(
@@ -1856,16 +1964,111 @@ async function startBot() {
     )
   }
 
-  const args = q.trim().split(/\s+/)
+  const args =
+  q.trim()
+    .split(/\s+/)
 
-  if (!args[0]) {
+if (!isGroup) {
+  args.splice(0, 1)
+}
+
+  const action =
+    args[0]?.toLowerCase()
+
+  const time =
+    args[1]
+
+  const mode =
+    args[2]?.toLowerCase() ||
+    "all"
+                
+  const message =
+  args
+    .slice(3)
+    .join(" ")
+
+  if (!action) {
     return reply(
-      "Use: !auto fechar 22:00\n!auto abrir 06:00"
+      "Use:\n!auto fechar 22:00 all\n!auto abrir 06:00 one"
     )
   }
 
+
+  if (
+    ![
+      "abrir",
+      "fechar",
+       "mensagem"
+    ].includes(
+      action
+    )
+  ) {
+    return reply(
+      "❌ Action invalid.\nUse abrir or fechar."
+    )
+  }
+
+
+  if (!time) {
+    return reply(
+      "❌ Informe a hora.\nExemplo: !auto fechar 22:00"
+    )
+  }
+
+
+  if (
+    !["all","one"].includes(
+      mode
+    )
+  ) {
+    return reply(
+      "❌ Mode invalid.\nUse all ou one."
+    )
+  }
+
+  if (!db.automations) {
+    db.automations = []
+  }
+
+  if (
+  action === "mensagem" &&
+  !message
+) {
   return reply(
-    "Auto command received."
+    "❌ Escreva a mensagem.\nExemplo:\n!auto mensagem 08:00 all Bom dia grupo"
+  )
+      }
+                
+  db.automations.push({
+    id:
+      Date.now()
+        .toString(),
+
+    jid:
+      targetGrupo,
+
+    action,
+
+    time,
+
+    mode,
+
+    message,
+
+    active:
+      true,
+
+    createdAt:
+      new Date()
+        .toISOString()
+  })
+
+
+  saveDB()
+
+
+  return reply(
+    `✅ Auto ${action} configured.\n🕒 Time: ${time}\n🔁 Mode: ${mode}`
   )
 
               }
