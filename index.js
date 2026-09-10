@@ -3423,7 +3423,7 @@ Welcome:
 <button
 class="primary"
 onclick="toggleGroup(
-\'${encodeURIComponent(g.jid)}'
+'\${encodeURIComponent(g.jid)}'
 )">
 Manage
 </button>
