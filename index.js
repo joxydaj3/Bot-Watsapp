@@ -427,7 +427,13 @@ async function isGroupAdmin(groupJid, userJid) {
 
 async function botIsAdmin(groupJid) {
   try {
+
     const meta = await getMetadata(groupJid, true)
+
+    console.log("===== PARTICIPANTS DEBUG =====")
+    console.log(JSON.stringify(meta.participants, null, 2))
+    console.log("BOT USER:", JSON.stringify(sock.user, null, 2))
+    console.log("===== END DEBUG =====")
 
     const botRawIds = [
       sock?.user?.id,
