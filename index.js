@@ -429,23 +429,38 @@ async function botIsAdmin(groupJid) {
   try {
     const meta = await getMetadata(groupJid, true)
 
-    const botIds = [
+    const botRawIds = [
       sock?.user?.id,
-      sock?.user?.lid,
-      await getBotJid()
-    ]
+      sock?.user?.lid
+    ].filter(Boolean)
+
+    const cleanNumber = value => {
+      return String(value || "")
+        .split("@")[0]
+        .split(":")[0]
+        .replace(/\D/g, "")
+    }
+
+    const botNumbers = botRawIds
+      .map(cleanNumber)
       .filter(Boolean)
-      .map(v => normalizeJid(v))
 
     const p = meta?.participants?.find(x => {
-      const ids = [x.id, x.lid].filter(Boolean).map(v => normalizeJid(v))
-      return ids.some(id => botIds.includes(id))
+      const participantIds = [x?.id, x?.lid]
+        .filter(Boolean)
+        .map(cleanNumber)
+        .filter(Boolean)
+
+      return participantIds.some(id => botNumbers.includes(id))
     })
 
     const result = isParticipantAdmin(p)
 
     console.log(
-      `🔐 Bot admin check: ${result ? "YES" : "NO"} | bot IDs: ${botIds.join(", ")}`
+      `🔐 Bot admin check: ${result ? "YES" : "NO"} | ` +
+      `bot: ${botNumbers.join(",")} | ` +
+      `participant: ${p?.id || p?.lid || "NOT FOUND"} | ` +
+      `role: ${p?.admin || "none"}`
     )
 
     return result
