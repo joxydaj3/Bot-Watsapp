@@ -1702,7 +1702,30 @@ async function startBot() {
               }
             }
           }
+          if (isGroup && body) {
+  for (const rule of db.autoReplies) {
 
+    if (!rule.active) continue
+
+    if (
+      body
+        .toLowerCase()
+        .includes(
+          rule.keyword.toLowerCase()
+        )
+    ) {
+
+      await sendText(
+        from,
+        rule.reply,
+        m
+      )
+
+      break
+    }
+  }
+              }
+          
           if (!isCmd) {
             return
           }
