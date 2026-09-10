@@ -410,34 +410,47 @@ async function getBotJid() {
 
 async function isGroupAdmin(groupJid, userJid) {
   try {
-    const meta = await getMetadata(groupJid)
+    const meta = await getMetadata(groupJid, true)
+    const target = normalizeJid(userJid)
 
-    const p = meta?.participants?.find(x =>
-      [x.id, x.lid]
-        .filter(Boolean)
-        .includes(userJid)
-    )
+    const p = meta?.participants?.find(x => {
+      const ids = [x.id, x.lid].filter(Boolean).map(v => normalizeJid(v))
+      return ids.includes(target)
+    })
 
     return isParticipantAdmin(p)
-  } catch {
+  } catch (e) {
+    console.error("isGroupAdmin:", e.message)
     return false
   }
 }
 
 async function botIsAdmin(groupJid) {
   try {
-    const meta = await getMetadata(groupJid)
+    const meta = await getMetadata(groupJid, true)
 
-    const bot = await getBotJid()
+    const botIds = [
+      sock?.user?.id,
+      sock?.user?.lid,
+      await getBotJid()
+    ]
+      .filter(Boolean)
+      .map(v => normalizeJid(v))
 
-    const p = meta?.participants?.find(x =>
-      [x.id, x.lid]
-        .filter(Boolean)
-        .includes(bot)
+    const p = meta?.participants?.find(x => {
+      const ids = [x.id, x.lid].filter(Boolean).map(v => normalizeJid(v))
+      return ids.some(id => botIds.includes(id))
+    })
+
+    const result = isParticipantAdmin(p)
+
+    console.log(
+      `🔐 Bot admin check: ${result ? "YES" : "NO"} | bot IDs: ${botIds.join(", ")}`
     )
 
-    return isParticipantAdmin(p)
-  } catch {
+    return result
+  } catch (e) {
+    console.error("botIsAdmin:", e.message)
     return false
   }
 }
