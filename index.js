@@ -1722,7 +1722,7 @@ async function startBot() {
       )
 
       break
-    }
+    } 
   }
               }
           
@@ -1830,6 +1830,8 @@ async function startBot() {
               )
             }
 
+          
+
             // =================================================
             // MENU
             // =================================================
@@ -1838,6 +1840,35 @@ async function startBot() {
               return reply(
                 makeMenu(from)
               )
+
+              case "auto": {
+
+  if (!isGroup) {
+    return reply("This command only works in groups.")
+  }
+
+  if (!admin) {
+    return reply(
+      T(
+        from,
+        "adminOnly"
+      )
+    )
+  }
+
+  const args = q.trim().split(/\s+/)
+
+  if (!args[0]) {
+    return reply(
+      "Use: !auto fechar 22:00\n!auto abrir 06:00"
+    )
+  }
+
+  return reply(
+    "Auto command received."
+  )
+
+              }
 
             // =================================================
             // PING
