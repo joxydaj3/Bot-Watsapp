@@ -1928,7 +1928,7 @@ async function startBot() {
                 makeMenu(from)
               )
 
-              case "auto": {
+             case "auto": {
 
   const args =
     q.trim()
@@ -1938,44 +1938,40 @@ async function startBot() {
 
   if (!isGroup) {
 
-  targetGroup =
-    args[1]
+    targetGroup =
+      args[1]
 
-  if (
-    !targetGroup ||
-    !targetGroup.endsWith("@g.us")
-  ) {
-    return reply(
-      "❌ Informe um ID de grupo válido."
-    )
-  }
+    if (
+      !targetGroup ||
+      !targetGroup.endsWith("@g.us")
+    ) {
+      return reply(
+        "❌ Informe um ID de grupo válido."
+      )
+    }
 
-  const senderIsAdmin =
-    await isGroupAdmin(
-      targetGroup,
-      sender
-    )
+    const senderIsAdmin =
+      await isGroupAdmin(
+        targetGroup,
+        sender
+      )
 
-  const targetBotIsAdmin =
-    await botIsAdmin(
-      targetGroup
-    )
+    const targetBotIsAdmin =
+      await botIsAdmin(
+        targetGroup
+      )
 
-  if (!senderIsAdmin) {
-    return reply(
-      "❌ You must be an Admin of the selected group."
-    )
-  }
+    if (!senderIsAdmin) {
+      return reply(
+        "❌ You must be an Admin of the selected group."
+      )
+    }
 
-  if (!targetBotIsAdmin) {
-    return reply(
-      "❌ The bot must also be an Admin of the selected group."
-    )
-  }
-
-  args.splice(0, 1)
-
-  }
+    if (!targetBotIsAdmin) {
+      return reply(
+        "❌ The bot must also be an Admin of the selected group."
+      )
+    }
 
   } else {
 
@@ -1988,15 +1984,20 @@ async function startBot() {
       )
     }
 
+    targetGroup =
+      from
   }
+
 
   const action =
     args[0]?.toLowerCase()
+
 
   const time =
     isGroup
       ? args[1]
       : args[2]
+
 
   const mode =
     (
@@ -2005,6 +2006,7 @@ async function startBot() {
         : args[3]
     )?.toLowerCase() ||
     "all"
+
 
   const message =
     isGroup
@@ -2111,8 +2113,7 @@ async function startBot() {
     `✅ Auto ${action} configured.\n🕒 Time: ${time}\n🔁 Mode: ${mode}`
   )
 
-}
-
+} 
 
             // =================================================
             // PING
