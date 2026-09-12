@@ -1938,28 +1938,44 @@ async function startBot() {
 
   if (!isGroup) {
 
-    if (
-      normalizeJid(sender) !==
-      normalizeJid(OWNER)
-    ) {
-      return reply(
-        "❌ Only owner can configure from private chat."
-      )
-    }
+  targetGroup =
+    args[1]
 
-    targetGroup =
-      args[1]
+  if (
+    !targetGroup ||
+    !targetGroup.endsWith("@g.us")
+  ) {
+    return reply(
+      "❌ Informe um ID de grupo válido."
+    )
+  }
 
-    if (
-      !targetGroup ||
-      !targetGroup.endsWith("@g.us")
-    ) {
-      return reply(
-        "Use:\n!auto mensagem GROUP_ID 08:00 all Text"
-      )
-    }
+  const senderIsAdmin =
+    await isGroupAdmin(
+      targetGroup,
+      sender
+    )
 
-    args.splice(0, 1)
+  const targetBotIsAdmin =
+    await botIsAdmin(
+      targetGroup
+    )
+
+  if (!senderIsAdmin) {
+    return reply(
+      "❌ You must be an Admin of the selected group."
+    )
+  }
+
+  if (!targetBotIsAdmin) {
+    return reply(
+      "❌ The bot must also be an Admin of the selected group."
+    )
+  }
+
+  args.splice(0, 1)
+
+  }
 
   } else {
 
