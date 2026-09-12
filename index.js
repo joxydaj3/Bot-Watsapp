@@ -1930,66 +1930,75 @@ async function startBot() {
 
               case "auto": {
 
+  const args =
+    q.trim()
+      .split(/\s+/)
+
   let targetGroup = from
 
-if (!isGroup) {
+  if (!isGroup) {
 
-  if (
-    normalizeJid(sender) !== normalizeJid(OWNER)
-  ) {
-    return reply(
-      "❌ Only owner can configure from private chat."
-    )
-  }
-
-  targetGroup = args[1]
-
-  if (
-    !targetGroup ||
-    !targetGroup.endsWith("@g.us")
-  ) {
-    return reply(
-      "Use:\n!auto mensagem GROUP_ID 08:00 all Text"
-    )
-  }
-
-}
-
-  if (!admin) {
-    return reply(
-      T(
-        from,
-        "adminOnly"
+    if (
+      normalizeJid(sender) !==
+      normalizeJid(OWNER)
+    ) {
+      return reply(
+        "❌ Only owner can configure from private chat."
       )
-    )
+    }
+
+    targetGroup =
+      args[1]
+
+    if (
+      !targetGroup ||
+      !targetGroup.endsWith("@g.us")
+    ) {
+      return reply(
+        "Use:\n!auto mensagem GROUP_ID 08:00 all Text"
+      )
+    }
+
+    args.splice(0, 1)
+
+  } else {
+
+    if (!admin) {
+      return reply(
+        T(
+          from,
+          "adminOnly"
+        )
+      )
+    }
+
   }
-
-  const args =
-  q.trim()
-    .split(/\s+/)
-
-if (!isGroup) {
-  args.splice(0, 1)
-}
 
   const action =
     args[0]?.toLowerCase()
 
   const time =
-    args[1]
+    isGroup
+      ? args[1]
+      : args[2]
 
   const mode =
-    args[2]?.toLowerCase() ||
+    (
+      isGroup
+        ? args[2]
+        : args[3]
+    )?.toLowerCase() ||
     "all"
-                
+
   const message =
-  args
-    .slice(3)
-    .join(" ")
+    isGroup
+      ? args.slice(3).join(" ")
+      : args.slice(4).join(" ")
+
 
   if (!action) {
     return reply(
-      "Use:\n!auto fechar 22:00 all\n!auto abrir 06:00 one"
+      "Use:\n!auto fechar 22:00 all\n!auto abrir 06:00 one\n!auto mensagem 08:00 all Texto"
     )
   }
 
@@ -1998,13 +2007,13 @@ if (!isGroup) {
     ![
       "abrir",
       "fechar",
-       "mensagem"
+      "mensagem"
     ].includes(
       action
     )
   ) {
     return reply(
-      "❌ Action invalid.\nUse abrir or fechar."
+      "❌ Action invalid.\nUse abrir, fechar ou mensagem."
     )
   }
 
@@ -2017,35 +2026,49 @@ if (!isGroup) {
 
 
   if (
-    !["all","one"].includes(
-      mode
+    !/^\d{2}:\d{2}$/.test(time)
+  ) {
+    return reply(
+      "❌ Hora inválida.\nUse o formato HH:MM. Exemplo: 22:00"
     )
+  }
+
+
+  if (
+    ![
+      "all",
+      "one"
+    ].includes(mode)
   ) {
     return reply(
       "❌ Mode invalid.\nUse all ou one."
     )
   }
 
+
   if (!db.automations) {
     db.automations = []
   }
 
+
   if (
-  action === "mensagem" &&
-  !message
-) {
-  return reply(
-    "❌ Escreva a mensagem.\nExemplo:\n!auto mensagem 08:00 all Bom dia grupo"
-  )
-      }
-                
+    action === "mensagem" &&
+    !message
+  ) {
+    return reply(
+      "❌ Escreva a mensagem.\nExemplo:\n!auto mensagem 08:00 all Bom dia grupo"
+    )
+  }
+
+
   db.automations.push({
+
     id:
       Date.now()
         .toString(),
 
     jid:
-      targetGrupo,
+      targetGroup,
 
     action,
 
@@ -2061,6 +2084,7 @@ if (!isGroup) {
     createdAt:
       new Date()
         .toISOString()
+
   })
 
 
@@ -2071,7 +2095,8 @@ if (!isGroup) {
     `✅ Auto ${action} configured.\n🕒 Time: ${time}\n🔁 Mode: ${mode}`
   )
 
-              }
+}
+
 
             // =================================================
             // PING
