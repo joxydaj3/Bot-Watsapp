@@ -1271,10 +1271,89 @@ setInterval(async () => {
   auto.action === "mensagem"
 ) {
 
-  await sendText(
-    auto.jid,
+  if (
+    auto.media &&
+    auto.media.path &&
+    await fs.pathExists(
+      auto.media.path
+    )
+  ) {
+
+    const media =
+      await fs.readFile(
+        auto.media.path
+      )
+
+    if (
+      auto.media.type ===
+      "imageMessage"
+    ) {
+
+      await sock.sendMessage(
+        auto.jid,
+        {
+          image: media,
+          caption:
+            auto.message ||
+            auto.media.caption ||
+            ""
+        }
+      )
+
+    } else if (
+      auto.media.type ===
+      "videoMessage"
+    ) {
+
+      await sock.sendMessage(
+        auto.jid,
+        {
+          video: media,
+          caption:
+            auto.message ||
+            auto.media.caption ||
+            "",
+          mimetype:
+            auto.media.mimetype ||
+            "video/mp4"
+        }
+      )
+
+    } else if (
+      auto.media.type ===
+      "audioMessage"
+    ) {
+
+      await sock.sendMessage(
+        auto.jid,
+        {
+          audio: media,
+          mimetype:
+            auto.media.mimetype ||
+            "audio/mpeg",
+          ptt: false
+        }
+      )
+
+      if (auto.message) {
+        await sendText(
+          auto.jid,
+          auto.message
+        )
+      }
+
+    }
+
+  } else if (
     auto.message
-  )
+  ) {
+
+    await sendText(
+      auto.jid,
+      auto.message
+    )
+
+  }
 
       }
 
