@@ -2,7 +2,7 @@ const {
   default: makeWASocket,
   useMultiFileAuthState,
   DisconnectReason,
-  fetchLatestBaileysVersion,
+  fetchLatestBaileysVersion, 
   Browsers,
   jidNormalizedUser,
   downloadMediaMessage,
@@ -1930,19 +1930,52 @@ async function startBot() {
 
              case "auto": {
 
-  const args =
-    q.trim()
-      .split(/\s+/)
+  const raw =
+    q.trimStart()
+
+  const ctx =
+    m.message
+      ?.extendedTextMessage
+      ?.contextInfo
+
+  const quotedMessage =
+    ctx?.quotedMessage || null
 
   let targetGroup = from
+  let action
+  let time
+  let mode
+  let message
 
   if (!isGroup) {
 
+    const match =
+      raw.match(
+        /^(\S+)\s+(\S+)\s+(\d{2}:\d{2})\s+(\S+)(?:\s+([\s\S]*))?$/
+      )
+
+    if (!match) {
+      return reply(
+        "Use:\n!auto mensagem GROUP_ID 08:00 all Texto"
+      )
+    }
+
+    action =
+      match[1].toLowerCase()
+
     targetGroup =
-      args[1]
+      match[2]
+
+    time =
+      match[3]
+
+    mode =
+      match[4].toLowerCase()
+
+    message =
+      match[5] || ""
 
     if (
-      !targetGroup ||
       !targetGroup.endsWith("@g.us")
     ) {
       return reply(
@@ -1984,73 +2017,51 @@ async function startBot() {
       )
     }
 
-    targetGroup =
-      from
+    targetGroup = from
+
+    const match =
+      raw.match(
+        /^(\S+)\s+(\d{2}:\d{2})\s+(\S+)(?:\s+([\s\S]*))?$/
+      )
+
+    if (!match) {
+      return reply(
+        "Use:\n!auto mensagem 08:00 all Texto"
+      )
+    }
+
+    action =
+      match[1].toLowerCase()
+
+    time =
+      match[2]
+
+    mode =
+      match[3].toLowerCase()
+
+    message =
+      match[4] || ""
   }
-
-
-  const action =
-    args[0]?.toLowerCase()
-
-
-  const time =
-    isGroup
-      ? args[1]
-      : args[2]
-
-
-  const mode =
-    (
-      isGroup
-        ? args[2]
-        : args[3]
-    )?.toLowerCase() ||
-    "all"
-
-
-  const message =
-    isGroup
-      ? args.slice(3).join(" ")
-      : args.slice(4).join(" ")
-
-
-  if (!action) {
-    return reply(
-      "Use:\n!auto fechar 22:00 all\n!auto abrir 06:00 one\n!auto mensagem 08:00 all Texto"
-    )
-  }
-
 
   if (
     ![
       "abrir",
       "fechar",
       "mensagem"
-    ].includes(
-      action
-    )
+    ].includes(action)
   ) {
     return reply(
       "❌ Action invalid.\nUse abrir, fechar ou mensagem."
     )
   }
 
-
-  if (!time) {
-    return reply(
-      "❌ Informe a hora.\nExemplo: !auto fechar 22:00"
-    )
-  }
-
-
   if (
     !/^\d{2}:\d{2}$/.test(time)
   ) {
     return reply(
-      "❌ Hora inválida.\nUse o formato HH:MM. Exemplo: 22:00"
+      "❌ Hora inválida.\nUse HH:MM. Exemplo: 22:00"
     )
   }
-
 
   if (
     ![
@@ -2063,27 +2074,124 @@ async function startBot() {
     )
   }
 
-
   if (!db.automations) {
     db.automations = []
   }
 
+  let media = null
 
   if (
     action === "mensagem" &&
-    !message
+    quotedMessage
   ) {
-    return reply(
-      "❌ Escreva a mensagem.\nExemplo:\n!auto mensagem 08:00 all Bom dia grupo"
-    )
+
+    const mediaType =
+      Object.keys(
+        quotedMessage
+      )[0]
+
+    if (
+      [
+        "imageMessage",
+        "videoMessage",
+        "audioMessage"
+      ].includes(mediaType)
+    ) {
+
+      try {
+
+        const autoDir =
+          path.join(
+            DATA_DIR,
+            "automations"
+          )
+
+        await fs.ensureDir(
+          autoDir
+        )
+
+        const ext =
+          mediaType === "imageMessage"
+            ? "jpg"
+            : mediaType === "videoMessage"
+              ? "mp4"
+              : "mp3"
+
+        const filePath =
+          path.join(
+            autoDir,
+            `${Date.now()}.${ext}`
+          )
+
+        const quoted = {
+          key: {
+            remoteJid: from,
+            id: ctx.stanzaId,
+            participant:
+              ctx.participant
+          },
+          message:
+            quotedMessage
+        }
+
+        const buffer =
+          await downloadMediaMessage(
+            quoted,
+            "buffer",
+            {},
+            {
+              logger: pino({
+                level: "silent"
+              })
+            }
+          )
+
+        await fs.writeFile(
+          filePath,
+          buffer
+        )
+
+        media = {
+          type: mediaType,
+          path: filePath,
+          mimetype:
+            quotedMessage[
+              mediaType
+            ]?.mimetype || "",
+          caption:
+            quotedMessage[
+              mediaType
+            ]?.caption || ""
+        }
+
+      } catch (e) {
+
+        console.error(
+          "Auto media save:",
+          e.message
+        )
+
+        return reply(
+          "❌ Não consegui guardar a mídia."
+        )
+      }
+    }
   }
 
+  if (
+    action === "mensagem" &&
+    !message &&
+    !media
+  ) {
+    return reply(
+      "❌ Escreva uma mensagem ou responda a uma foto, vídeo ou áudio."
+    )
+  }
 
   db.automations.push({
 
     id:
-      Date.now()
-        .toString(),
+      Date.now().toString(),
 
     jid:
       targetGroup,
@@ -2096,24 +2204,23 @@ async function startBot() {
 
     message,
 
+    media,
+
     active:
       true,
 
     createdAt:
-      new Date()
-        .toISOString()
+      new Date().toISOString()
 
   })
 
-
   saveDB()
 
-
   return reply(
-    `✅ Auto ${action} configured.\n🕒 Time: ${time}\n🔁 Mode: ${mode}`
+    `✅ Auto ${action} configured.\n🕒 Time: ${time}\n🔁 Mode: ${mode}${media ? "\n📎 Media: saved" : ""}`
   )
 
-} 
+                }
 
             // =================================================
             // PING
